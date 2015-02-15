@@ -65,7 +65,7 @@
 #define STR(s)                          #s
 
 // Globals for threads to check
-_Atomic int stop;
+_Atomic(int) stop;
 
 typedef struct barrier {
 	pthread_cond_t complete;

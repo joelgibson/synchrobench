@@ -14,6 +14,8 @@ static inline int get_version(node_t *node) {
 static inline int try_lock_at_version(node_t *node, vlock_t ver) {
   return atomic_compare_exchange_strong(&node->vlock, &ver, ver+1);
 }
+
+// TODO: employ a smarter locking here? Busy waiting is not ideal.
 static inline void lock_at_current_version(node_t *node) {
   int success = 0;
   while (!success) {
