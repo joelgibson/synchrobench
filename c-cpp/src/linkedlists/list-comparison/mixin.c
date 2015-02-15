@@ -1,3 +1,8 @@
+/* To be included into <algo>.c if all that is needed is:
+ * - Init a set with head and tail node VAL_MIN and VAL_MAX resp.
+ * - New nodes are calloced.
+ */
+
 // Create a new set.
 intset_t *set_new(void) {
   intset_t *set = malloc(sizeof(intset_t));

@@ -45,6 +45,8 @@
 #include "fomitchev.h"
 #elif defined LAZY
 #include "lazy.h"
+#elif defined COUPLING
+#include "coupling.h"
 #else
 #error "No algorithm named"
 #endif

@@ -15,7 +15,7 @@ CFLAGS += -Wall -pedantic -std=gnu11
 
 .PHONY:	all clean
 
-all: sequential harris versioned fomitchev lazy
+all: sequential harris versioned fomitchev lazy coupling
 
 sequential: sequential.o test.c
 	$(CC) $(CFLAGS) -DSEQUENTIAL sequential.o test.c -o sequential $(LDFLAGS)
@@ -32,5 +32,8 @@ fomitchev: fomitchev.o test.c
 lazy: lazy.o test.c
 	$(CC) $(CFLAGS) -DLAZY lazy.o test.c -o lazy $(LDFLAGS)
 
+coupling: coupling.o test.c
+	$(CC) $(CFLAGS) -DCOUPLING coupling.o test.c -o coupling $(LDFLAGS)
+
 clean:
-	-rm -f *.o sequential harris versioned fomitchev lazy
+	-rm -f *.o sequential harris versioned fomitchev lazy coupling
