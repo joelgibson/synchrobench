@@ -6,7 +6,7 @@
 // Check both curr and pred are both unmarked and that pred.next == curr
 // to verify that the entries and adjacent and present in the list.
 static inline int validate(node_t *pred, node_t *curr) {
-  return !pred->marked && pred->next == curr;
+  return !pred->marked && !curr->marked && pred->next == curr;
 }
 
 int set_contains(intset_t *set, val_t val) {
