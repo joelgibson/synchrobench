@@ -60,6 +60,8 @@ void gc_defer(node_t *node) {
     if (atomic_compare_exchange_strong(&gc_head, &head, gc_node->head)) {
       gc_node->head = gc_node->tail = NULL;
       gc_node->count = 0;
+    } else {
+      gc_node->tail->gcnext = NULL;
     }
   }
 }
