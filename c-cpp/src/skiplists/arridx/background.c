@@ -42,55 +42,72 @@ void *bg_thread_fn(void *targs) {
   int ntimes = 0;
 
   while (atomic_load(&bg_shouldstop) == 0) {
-    usleep(500);
+    usleep(250);
     ntimes++;
 
     // Seize the freelist, we'll free things after the next rcu_sync.
     node_t *freelist = gc_cut();
 
-    // Start creating the next index. It needs to contain the list head:
-    spareidx->elems[0].k = set->head->k;
-    spareidx->elems[0].node = set->head;
-
-    // Arrpos: next free slot in elems array.
-    int arrpos = 1;
-
-    // Listpos: position in linked list, only counting non-deleted elements.
-    int listpos = 0;
-
-    // We need to start past the head node, otherwise we'll try to
-    // physically remove it!
-    for (node_t *curr = set->head->next; curr != NULL; curr = curr->next) {
-      void *val = curr->v;
-      
-      // Is the node logically removed? Try to delete it
-      if (val == NULL) {
-        try_mark_phys_remove(curr);
-        continue;
+    // At the moment, there should not be any physically deleted nodes.
+    // Let's measure how many elements exceed the index gap.
+    idx_t *idx = set->idx;
+    int maxgap = 0;
+    for (int i = 0; i < idx->size; i++) {
+      node_t *curr = idx->elems[i].node;
+      node_t *stop = (i == idx->size-1) ? NULL : idx->elems[i+1].node;
+      int gap = 0;
+      while (curr != stop) {
+        gap++;
+        curr = curr->next;
       }
+      if (gap > maxgap) maxgap = gap;
+    }
 
-      // Is the node physically removed? Ignore it.
-      if (val == curr)
-        continue;
+    if (maxgap > IDX_GAP * 10) {
+      // Start creating the next index. It needs to contain the list head:
+      spareidx->elems[0].k = set->head->k;
+      spareidx->elems[0].node = set->head;
 
-      // Now we have a present node.
-      listpos++;
-      if (listpos % IDX_GAP == 0) {
-        // Realloc space in array if needed
-        if (arrpos == spareidx->cap) {
-          spareidx->cap *= 2;
-          spareidx->elems = realloc(spareidx->elems, spareidx->cap * sizeof(idx_elem_t));
+      // Arrpos: next free slot in elems array.
+      int arrpos = 1;
+
+      // Listpos: position in linked list, only counting non-deleted elements.
+      int listpos = 0;
+
+      // We need to start past the head node, otherwise we'll try to
+      // physically remove it!
+      for (node_t *curr = set->head->next; curr != NULL; curr = curr->next) {
+        void *val = curr->v;
+
+        // Is the node logically removed? Try to delete it
+        if (val == NULL) {
+          try_mark_phys_remove(curr);
+          continue;
         }
 
-        spareidx->elems[arrpos++] = (idx_elem_t){curr->k, curr};
-      }
-    }
-    spareidx->size = arrpos;
+        // Is the node physically removed? Ignore it.
+        if (val == curr)
+          continue;
 
-    // Swap the current index with the spare
-    idx_t *tmp = set->idx;
-    atomic_store(&set->idx, spareidx);
-    spareidx = tmp;
+        // Now we have a present node.
+        listpos++;
+        if (listpos % IDX_GAP == 0) {
+          // Realloc space in array if needed
+          if (arrpos == spareidx->cap) {
+            spareidx->cap *= 2;
+            spareidx->elems = realloc(spareidx->elems, spareidx->cap * sizeof(idx_elem_t));
+          }
+
+          spareidx->elems[arrpos++] = (idx_elem_t){curr->k, curr};
+        }
+      }
+      spareidx->size = arrpos;
+
+      // Swap the current index with the spare
+      idx_t *tmp = set->idx;
+      atomic_store(&set->idx, spareidx);
+      spareidx = tmp;
+    }
 
     // Wait for an RCU grace period: after this we know that no-one has references
     // to nodes on the portion of the freelist we're holding, and also no-one is
