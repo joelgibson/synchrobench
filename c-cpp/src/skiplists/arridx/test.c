@@ -381,6 +381,7 @@ int main(int argc, char **argv) {
 				 (int)sizeof(void *),
 				 (int)sizeof(uintptr_t));
   printf("Node size    : %d\n", (int)sizeof(node_t));
+  printf("idx_elem size: %d\n", (int)sizeof(idx_elem_t));
 	
 	timeout.tv_sec = duration / 1000;
 	timeout.tv_nsec = (duration % 1000) * 1000000;

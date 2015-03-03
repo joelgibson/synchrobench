@@ -6,6 +6,8 @@ BINS = $(BINDIR)/lockfree-arridx
 
 CFLAGS += -Wall -pedantic -std=gnu11
 
+CC=gcc
+
 .PHONY:	all clean
 
 all: main
