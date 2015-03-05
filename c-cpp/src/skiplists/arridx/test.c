@@ -9,7 +9,7 @@
  * Copyright (c) 2009-2010.
  *
  * test.c is part of Synchrobench
- * 
+ *
  * Synchrobench is free software: you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation, version 2
@@ -60,16 +60,14 @@ typedef struct barrier {
 	int crossing;
 } barrier_t;
 
-void barrier_init(barrier_t *b, int n)
-{
+void barrier_init(barrier_t *b, int n) {
 	pthread_cond_init(&b->complete, NULL);
 	pthread_mutex_init(&b->mutex, NULL);
 	b->count = n;
 	b->crossing = 0;
 }
 
-void barrier_cross(barrier_t *b)
-{
+void barrier_cross(barrier_t *b) {
 	pthread_mutex_lock(&b->mutex);
 	/* One more thread through */
 	b->crossing++;
@@ -86,17 +84,17 @@ void barrier_cross(barrier_t *b)
 
 
 
-/* 
+/*
  * Returns a pseudo-random value in [1; range].
  * Depending on the symbolic constant RAND_MAX>=32767 defined in stdlib.h,
- * the granularity of rand() could be lower-bounded by the 32767^th which might 
+ * the granularity of rand() could be lower-bounded by the 32767^th which might
  * be too high for given program options [r]ange and [i]nitial.
  */
 inline long rand_range(long r) {
-  //int m = RAND_MAX;
-  int m = 2147483647;
+	//int m = RAND_MAX;
+	int m = 2147483647;
 	long d, v = 0;
-	
+
 	do {
 		d = (m > r ? r : m);
 		v += 1 + (long)(d * ((double)rand()/((double)(m)+1.0)));
@@ -109,9 +107,9 @@ inline long rand_range(long r) {
 inline long rand_range_re(unsigned int *seed, long r) {
 	int m = 2147483647;
 	long d, v = 0;
-	
+
 	do {
-		d = (m > r ? r : m);		
+		d = (m > r ? r : m);
 		v += 1 + (long)(d * ((double)rand_r(seed)/((double)(m)+1.0)));
 		r -= m;
 	} while (r > 0);
@@ -129,7 +127,7 @@ typedef struct thread_data {
 	unsigned long nb_add;
 	unsigned long nb_added;
 	unsigned long nb_remove;
-	unsigned long nb_removed;	
+	unsigned long nb_removed;
 	unsigned long nb_contains;
 	unsigned long nb_found;
 	unsigned long nb_aborts;
@@ -145,45 +143,44 @@ typedef struct thread_data {
 	intset_t *set;
 	barrier_t *barrier;
 	unsigned long failures_because_contention;
-  int id;
+	int id;
 } thread_data_t;
 
 void *test(void *data) {
-	int unext, last = -1; 
+	int unext, last = -1;
 	int val = 0;
-	
+
 	thread_data_t *d = (thread_data_t *)data;
 
-  urcu_register(d->id);
-  gc_register(d->id);
-	
+	set_thread_register(d->id);
+
 	/* Create transaction */
 	//TM_THREAD_ENTER();
 	/* Wait on barrier */
 	barrier_cross(d->barrier);
-	
+
 	/* Is the first op an update? */
 	unext = (rand_range_re(&d->seed, 100) - 1 < d->update);
 
-  while (atomic_load(&stop) == 0) {
-		
+	while (atomic_load(&stop) == 0) {
+
 		if (unext) { // update
-			
+
 			if (last < 0) { // add
-		
+
 				val = rand_range_re(&d->seed, d->range);
 				if (set_insert(d->set, val)) {
 					d->nb_added++;
 					last = val;
-				} 				
+				}
 				d->nb_add++;
-				
+
 			} else { // remove
-				
+
 				if (d->alternate) { // alternate mode (default)
 					if (set_remove(d->set, last)) {
 						d->nb_removed++;
-					} 
+					}
 					last = -1;
 				} else {
 					/* Random computation only in non-alternated cases */
@@ -193,13 +190,13 @@ void *test(void *data) {
 						d->nb_removed++;
 						/* Repeat until successful, to avoid size variations */
 						last = -1;
-					} 
+					}
 				}
 				d->nb_remove++;
 			}
-			
+
 		} else { // read
-				
+
 			if (d->alternate) {
 				if (d->update == 0) {
 					if (last < 0) {
@@ -217,34 +214,34 @@ void *test(void *data) {
 						val = last;
 					}
 				}
-			}	else val = rand_range_re(&d->seed, d->range);
-			
-			if (set_contains(d->set, val)) 
+			}   else val = rand_range_re(&d->seed, d->range);
+
+			if (set_contains(d->set, val))
 				d->nb_found++;
 			d->nb_contains++;
-	
+
 		}
-		
+
 		/* Is the next op an update? */
 		if (d->effective) { // a failed remove/add is a read-only tx
 			unext = ((100 * (d->nb_added + d->nb_removed))
-						 < (d->update * (d->nb_add + d->nb_remove + d->nb_contains)));
+					 < (d->update * (d->nb_add + d->nb_remove + d->nb_contains)));
 		} else { // remove/add (even failed) is considered as an update
 			unext = (rand_range_re(&d->seed, 100) - 1 < d->update);
 		}
-		
+
 	}
-	
+
 	/* Free transaction */
 	//TM_THREAD_EXIT();
-  //
-  urcu_unregister();
-	
+	//
+	set_thread_unregister();
+
 	return NULL;
 }
 
 /*void catcher(int sig) {
-	printf("CAUGHT SIGNAL %d\n", sig);
+    printf("CAUGHT SIGNAL %d\n", sig);
 }*/
 
 int main(int argc, char **argv) {
@@ -259,15 +256,15 @@ int main(int argc, char **argv) {
 		{"update-rate",               required_argument, NULL, 'u'},
 		{NULL, 0, NULL, 0}
 	};
-	
+
 	intset_t *set;
 	int i, c, size;
-	key_t last = 0; 
+	key_t last = 0;
 	key_t val = 0;
-	unsigned long reads, effreads, updates, effupds, aborts, aborts_locked_read, 
-	aborts_locked_write, aborts_validate_read, aborts_validate_write, 
-	aborts_validate_commit, aborts_invalid_memory, aborts_double_write, 
-	max_retries, failures_because_contention;
+	unsigned long reads, effreads, updates, effupds, aborts, aborts_locked_read,
+			 aborts_locked_write, aborts_validate_read, aborts_validate_write,
+			 aborts_validate_commit, aborts_invalid_memory, aborts_double_write,
+			 max_retries, failures_because_contention;
 	thread_data_t *data;
 	pthread_t *threads;
 	pthread_attr_t attr;
@@ -284,87 +281,87 @@ int main(int argc, char **argv) {
 	int alternate = DEFAULT_ALTERNATE;
 	int effective = DEFAULT_EFFECTIVE;
 	sigset_t block_set;
-	
-	while(1) {
+
+	while (1) {
 		i = 0;
 		c = getopt_long(argc, argv, "hAf:d:i:t:r:S:u:", long_options, &i);
-		
-		if(c == -1)
+
+		if (c == -1)
 			break;
-		
-		if(c == 0 && long_options[i].flag == 0)
+
+		if (c == 0 && long_options[i].flag == 0)
 			c = long_options[i].val;
-		
-		switch(c) {
-				case 0:
-					/* Flag is automatically set */
-					break;
-				case 'h':
-					printf("intset -- STM stress test "
-								 "(linked list)\n"
-								 "\n"
-								 "Usage:\n"
-								 "  intset [options...]\n"
-								 "\n"
-								 "Options:\n"
-								 "  -h, --help\n"
-								 "        Print this message\n"
-								 "  -A, --alternate (default="XSTR(DEFAULT_ALTERNATE)")\n"
-								 "        Consecutive insert/remove target the same value\n"
-								 "  -f, --effective <int>\n"
-								 "        update txs must effectively write (0=trial, 1=effective, default=" XSTR(DEFAULT_EFFECTIVE) ")\n"
-								 "  -d, --duration <int>\n"
-								 "        Test duration in milliseconds (0=infinite, default=" XSTR(DEFAULT_DURATION) ")\n"
-								 "  -i, --initial-size <int>\n"
-								 "        Number of elements to insert before test (default=" XSTR(DEFAULT_INITIAL) ")\n"
-								 "  -n, --thread-num <int>\n"
-								 "        Number of threads (default=" XSTR(DEFAULT_NB_THREADS) ")\n"
-								 "  -r, --range <int>\n"
-								 "        Range of integer values inserted in set (default=" XSTR(DEFAULT_RANGE) ")\n"
-								 "  -S, --seed <int>\n"
-								 "        RNG seed (0=time-based, default=" XSTR(DEFAULT_SEED) ")\n"
-								 "  -u, --update-rate <int>\n"
-								 "        Percentage of update transactions (default=" XSTR(DEFAULT_UPDATE) ")\n"
-								 );
-					exit(0);
-				case 'A':
-					alternate = 1;
-					break;
-				case 'f':
-					effective = atoi(optarg);
-					break;
-				case 'd':
-					duration = atoi(optarg);
-					break;
-				case 'i':
-					initial = atoi(optarg);
-					break;
-				case 't':
-					nb_threads = atoi(optarg);
-					break;
-				case 'r':
-					range = atol(optarg);
-					break;
-				case 'S':
-					seed = atoi(optarg);
-					break;
-				case 'u':
-					update = atoi(optarg);
-					break;
-				case '?':
-					printf("Use -h or --help for help\n");
-					exit(0);
-				default:
-					exit(1);
+
+		switch (c) {
+		case 0:
+			/* Flag is automatically set */
+			break;
+		case 'h':
+			printf("intset -- STM stress test "
+				   "(linked list)\n"
+				   "\n"
+				   "Usage:\n"
+				   "  intset [options...]\n"
+				   "\n"
+				   "Options:\n"
+				   "  -h, --help\n"
+				   "        Print this message\n"
+				   "  -A, --alternate (default="XSTR(DEFAULT_ALTERNATE)")\n"
+				   "        Consecutive insert/remove target the same value\n"
+				   "  -f, --effective <int>\n"
+				   "        update txs must effectively write (0=trial, 1=effective, default=" XSTR(DEFAULT_EFFECTIVE) ")\n"
+				   "  -d, --duration <int>\n"
+				   "        Test duration in milliseconds (0=infinite, default=" XSTR(DEFAULT_DURATION) ")\n"
+				   "  -i, --initial-size <int>\n"
+				   "        Number of elements to insert before test (default=" XSTR(DEFAULT_INITIAL) ")\n"
+				   "  -n, --thread-num <int>\n"
+				   "        Number of threads (default=" XSTR(DEFAULT_NB_THREADS) ")\n"
+				   "  -r, --range <int>\n"
+				   "        Range of integer values inserted in set (default=" XSTR(DEFAULT_RANGE) ")\n"
+				   "  -S, --seed <int>\n"
+				   "        RNG seed (0=time-based, default=" XSTR(DEFAULT_SEED) ")\n"
+				   "  -u, --update-rate <int>\n"
+				   "        Percentage of update transactions (default=" XSTR(DEFAULT_UPDATE) ")\n"
+				  );
+			exit(0);
+		case 'A':
+			alternate = 1;
+			break;
+		case 'f':
+			effective = atoi(optarg);
+			break;
+		case 'd':
+			duration = atoi(optarg);
+			break;
+		case 'i':
+			initial = atoi(optarg);
+			break;
+		case 't':
+			nb_threads = atoi(optarg);
+			break;
+		case 'r':
+			range = atol(optarg);
+			break;
+		case 'S':
+			seed = atoi(optarg);
+			break;
+		case 'u':
+			update = atoi(optarg);
+			break;
+		case '?':
+			printf("Use -h or --help for help\n");
+			exit(0);
+		default:
+			exit(1);
 		}
 	}
-	
+
 	assert(duration >= 0);
 	assert(initial >= 0);
 	assert(nb_threads > 0);
 	assert(range > 0 && range >= initial);
 	assert(update >= 0 && update <= 100);
-	
+
 	printf("Bench type   : array-indexed list\n");
 	printf("Duration     : %d\n", duration);
 	printf("Initial size : %d\n", initial);
@@ -376,16 +373,16 @@ int main(int argc, char **argv) {
 	printf("Alternate    : %d\n", alternate);
 	printf("Effective    : %d\n", effective);
 	printf("Type sizes   : int=%d/long=%d/ptr=%d/word=%d\n",
-				 (int)sizeof(int),
-				 (int)sizeof(long),
-				 (int)sizeof(void *),
-				 (int)sizeof(uintptr_t));
-  printf("Node size    : %d\n", (int)sizeof(node_t));
-  printf("idx_elem size: %d\n", (int)sizeof(idx_elem_t));
-	
+		   (int)sizeof(int),
+		   (int)sizeof(long),
+		   (int)sizeof(void *),
+		   (int)sizeof(uintptr_t));
+	printf("Node size    : %d\n", (int)sizeof(node_t));
+	printf("idx_elem size: %d\n", (int)sizeof(idx_elem_t));
+
 	timeout.tv_sec = duration / 1000;
 	timeout.tv_nsec = (duration % 1000) * 1000000;
-	
+
 	if ((data = (thread_data_t *)malloc(nb_threads * sizeof(thread_data_t))) == NULL) {
 		perror("malloc");
 		exit(1);
@@ -394,23 +391,23 @@ int main(int argc, char **argv) {
 		perror("malloc");
 		exit(1);
 	}
-	
+
 	if (seed == 0)
 		srand((int)time(0));
 	else
 		srand(seed);
-	
-	set = set_new(nb_threads);
+
+	set = set_init(nb_threads);
 	stop = 0;
-	
+
 	/* Init STM */
 	//printf("Initializing STM\n");
-	
+
 	//TM_STARTUP();
-	
+
 	/* Populate set */
-  urcu_register(0);
-  gc_register(0);
+	urcu_register(0);
+	gc_register(0);
 	printf("Adding %d entries to set\n", initial);
 	i = 0;
 	while (i < initial) {
@@ -418,14 +415,14 @@ int main(int argc, char **argv) {
 		if (set_insert(set, val)) {
 			last = val;
 			i++;
-      //set_print(set);
-      //printf("%d\n", set_size(set));
+			//set_print(set);
+			//printf("%d\n", set_size(set));
 		}
 	}
-  urcu_unregister();
+	urcu_unregister();
 	size = set_size(set);
 	printf("Set size     : %d\n", size);
-	
+
 	/* Access set from all threads */
 	barrier_init(&barrier, nb_threads + 1);
 	pthread_attr_init(&attr);
@@ -457,17 +454,17 @@ int main(int argc, char **argv) {
 		data[i].set = set;
 		data[i].barrier = &barrier;
 		data[i].failures_because_contention = 0;
-    data[i].id = i;
+		data[i].id = i;
 		if (pthread_create(&threads[i], &attr, test, (void *)(&data[i])) != 0) {
 			fprintf(stderr, "Error creating thread\n");
 			exit(1);
 		}
 	}
 	pthread_attr_destroy(&attr);
-	
+
 	/* Start threads */
 	barrier_cross(&barrier);
-	
+
 	printf("STARTING...\n");
 	gettimeofday(&start, NULL);
 	if (duration > 0) {
@@ -476,16 +473,16 @@ int main(int argc, char **argv) {
 		sigemptyset(&block_set);
 		sigsuspend(&block_set);
 	}
-	
-/*
-#ifdef ICC
-	stop = 1;
-#else	
-	AO_store_full(&stop, 1);
-#endif // ICC
-*/
-  atomic_store(&stop, 1);
-	
+
+	/*
+	#ifdef ICC
+	    stop = 1;
+	#else
+	    AO_store_full(&stop, 1);
+	#endif // ICC
+	*/
+	atomic_store(&stop, 1);
+
 	gettimeofday(&end, NULL);
 	printf("STOPPING...\n");
 
@@ -496,7 +493,7 @@ int main(int argc, char **argv) {
 			exit(1);
 		}
 	}
-	
+
 	duration = (end.tv_sec * 1000 + end.tv_usec / 1000) - (start.tv_sec * 1000 + start.tv_usec / 1000);
 	aborts = 0;
 	aborts_locked_read = 0;
@@ -540,73 +537,73 @@ int main(int argc, char **argv) {
 		aborts_double_write += data[i].nb_aborts_double_write;
 		failures_because_contention += data[i].failures_because_contention;
 		reads += data[i].nb_contains;
-		effreads += data[i].nb_contains + 
-			(data[i].nb_add - data[i].nb_added) + 
-			(data[i].nb_remove - data[i].nb_removed); 
+		effreads += data[i].nb_contains +
+					(data[i].nb_add - data[i].nb_added) +
+					(data[i].nb_remove - data[i].nb_removed);
 		updates += (data[i].nb_add + data[i].nb_remove);
-		effupds += data[i].nb_removed + data[i].nb_added; 
+		effupds += data[i].nb_removed + data[i].nb_added;
 		size += data[i].nb_added - data[i].nb_removed;
 		if (max_retries < data[i].max_retries)
 			max_retries = data[i].max_retries;
 	}
 	printf("Set size      : %d (expected: %d)\n", set_size(set), size);
 	printf("Duration      : %d (ms)\n", duration);
-	printf("#txs          : %lu (%f / s)\n", reads + updates, 
-				 (reads + updates) * 1000.0 / duration);
-	
+	printf("#txs          : %lu (%f / s)\n", reads + updates,
+		   (reads + updates) * 1000.0 / duration);
+
 	printf("#read txs     : ");
 	if (effective) {
 		printf("%lu (%f / s)\n", effreads, effreads * 1000.0 / duration);
 		printf("  #contains   : %lu (%f / s)\n", reads, reads * 1000.0 / duration);
 	} else printf("%lu (%f / s)\n", reads, reads * 1000.0 / duration);
-	
+
 	printf("#eff. upd rate: %f \n", 100.0 * effupds / (effupds + effreads));
-	
+
 	printf("#update txs   : ");
 	if (effective) {
 		printf("%lu (%f / s)\n", effupds, effupds * 1000.0 / duration);
-		printf("  #upd trials : %lu (%f / s)\n", updates, updates * 1000.0 / 
-					 duration);
+		printf("  #upd trials : %lu (%f / s)\n", updates, updates * 1000.0 /
+			   duration);
 	} else printf("%lu (%f / s)\n", updates, updates * 1000.0 / duration);
-	
-	
-	printf("#aborts       : %lu (%f / s)\n", aborts, 
-				 aborts * 1000.0 / duration);
-	printf("  #lock-r     : %lu (%f / s)\n", aborts_locked_read, 
-				 aborts_locked_read * 1000.0 / duration);
-	printf("  #lock-w     : %lu (%f / s)\n", aborts_locked_write, 
-				 aborts_locked_write * 1000.0 / duration);
-	printf("  #val-r      : %lu (%f / s)\n", aborts_validate_read, 
-				 aborts_validate_read * 1000.0 / duration);
-	printf("  #val-w      : %lu (%f / s)\n", aborts_validate_write, 
-				 aborts_validate_write * 1000.0 / duration);
-	printf("  #val-c      : %lu (%f / s)\n", aborts_validate_commit, 
-				 aborts_validate_commit * 1000.0 / duration);
-	printf("  #inv-mem    : %lu (%f / s)\n", aborts_invalid_memory, 
-				 aborts_invalid_memory * 1000.0 / duration);
-	printf("  #dup-w      : %lu (%f / s)\n", aborts_double_write, 
-				 aborts_double_write * 1000.0 / duration);
+
+
+	printf("#aborts       : %lu (%f / s)\n", aborts,
+		   aborts * 1000.0 / duration);
+	printf("  #lock-r     : %lu (%f / s)\n", aborts_locked_read,
+		   aborts_locked_read * 1000.0 / duration);
+	printf("  #lock-w     : %lu (%f / s)\n", aborts_locked_write,
+		   aborts_locked_write * 1000.0 / duration);
+	printf("  #val-r      : %lu (%f / s)\n", aborts_validate_read,
+		   aborts_validate_read * 1000.0 / duration);
+	printf("  #val-w      : %lu (%f / s)\n", aborts_validate_write,
+		   aborts_validate_write * 1000.0 / duration);
+	printf("  #val-c      : %lu (%f / s)\n", aborts_validate_commit,
+		   aborts_validate_commit * 1000.0 / duration);
+	printf("  #inv-mem    : %lu (%f / s)\n", aborts_invalid_memory,
+		   aborts_invalid_memory * 1000.0 / duration);
+	printf("  #dup-w      : %lu (%f / s)\n", aborts_double_write,
+		   aborts_double_write * 1000.0 / duration);
 	printf("  #failures   : %lu\n",  failures_because_contention);
 	printf("Max retries   : %lu\n", max_retries);
-  
-  // Print set
-  //set_print(set);
-  int nreg = 0, ndel = 0, nphys = 0;
-  for (node_t *curr = set->head->next; curr != NULL; curr = curr->next) {
-    if (curr->v == curr) nphys++;
-    else if (curr->v == NULL) ndel++;
-    else nreg++;
-  }
-  printf("%d regular, %d logically deleted, %d physically deleted\n", nreg, ndel, nphys);
-	
+
+	// Print set
+	//set_print(set);
+	int nreg = 0, ndel = 0, nphys = 0;
+	for (node_t *curr = set->head->next; curr != NULL; curr = curr->next) {
+		if (curr->v == curr) nphys++;
+		else if (curr->v == NULL) ndel++;
+		else nreg++;
+	}
+	printf("%d regular, %d logically deleted, %d physically deleted\n", nreg, ndel, nphys);
+
 	/* Delete set */
-	set_delete(set);
-	
+	set_destroy(set);
+
 	/* Cleanup STM */
 	//TM_SHUTDOWN();
-	
+
 	free(threads);
 	free(data);
-	
+
 	return 0;
 }
