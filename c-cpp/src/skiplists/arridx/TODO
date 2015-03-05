@@ -1,0 +1,7 @@
+* Find new words for the states active, logically deleted, physically removed,
+  actually out of the list, and garbage collected.
+* Try to find a strategy for limiting the rate that restructures happen, which speeds it up on both
+  Intel and AMD.
+* See if we can simplify the garbage collection futher: perhaps threads caching their own frees is
+  too pessimistic and won't give a performance decrease anyway.
+* See if we can decrease the variance of the running time. How? I dunno...

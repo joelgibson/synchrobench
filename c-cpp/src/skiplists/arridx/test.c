@@ -254,6 +254,7 @@ int main(int argc, char **argv) {
 		{"range",                     required_argument, NULL, 'r'},
 		{"seed",                      required_argument, NULL, 'S'},
 		{"update-rate",               required_argument, NULL, 'u'},
+		{"max_idx_gap",	required_argument, NULL, 'g'},
 		{NULL, 0, NULL, 0}
 	};
 
@@ -284,7 +285,7 @@ int main(int argc, char **argv) {
 
 	while (1) {
 		i = 0;
-		c = getopt_long(argc, argv, "hAf:d:i:t:r:S:u:", long_options, &i);
+		c = getopt_long(argc, argv, "hAf:d:i:t:r:S:u:g:", long_options, &i);
 
 		if (c == -1)
 			break;
@@ -322,6 +323,8 @@ int main(int argc, char **argv) {
 				   "        RNG seed (0=time-based, default=" XSTR(DEFAULT_SEED) ")\n"
 				   "  -u, --update-rate <int>\n"
 				   "        Percentage of update transactions (default=" XSTR(DEFAULT_UPDATE) ")\n"
+				   "  -g, --max_idx_gap <int>\n"
+				   "        maximum gap to tolerate in index before restructure")\n"
 				  );
 			exit(0);
 		case 'A':
@@ -348,6 +351,9 @@ int main(int argc, char **argv) {
 		case 'u':
 			update = atoi(optarg);
 			break;
+		case 'g':
+			max_idx_gap = atoi(optarg);
+			break;
 		case '?':
 			printf("Use -h or --help for help\n");
 			exit(0);
@@ -361,6 +367,7 @@ int main(int argc, char **argv) {
 	assert(nb_threads > 0);
 	assert(range > 0 && range >= initial);
 	assert(update >= 0 && update <= 100);
+	assert(max_idx_gap >= 0);
 
 	printf("Bench type   : array-indexed list\n");
 	printf("Duration     : %d\n", duration);
