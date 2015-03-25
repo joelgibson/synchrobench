@@ -40,7 +40,7 @@
 #include "lockfree.h"
 #include "intset.h"
 
-extern double levelProb;
+extern double levelProb, logicProb;
 
 #define DEFAULT_DURATION                10000
 #define DEFAULT_INITIAL                 256
@@ -349,7 +349,7 @@ int main(int argc, char **argv)
 
 	while(1) {
 		i = 0;
-		c = getopt_long(argc, argv, "hAf:d:i:t:r:S:u:U:p:"
+		c = getopt_long(argc, argv, "hAf:d:i:t:r:S:u:U:p:l:"
 										, long_options, &i);
 
 		if(c == -1)
@@ -389,8 +389,11 @@ int main(int argc, char **argv)
 								 "        Percentage of update transactions (default=" XSTR(DEFAULT_UPDATE) ")\n"
 					                         "  -U, --unbalance <int>\n"
 								 "        Percentage of skewness of the distribution of values (default=" XSTR(DEFAULT_UNBALANCED) ")\n"
-								 "  -p, --probability <double>\n"
+								 "  -p, --levelprob <double>\n"
 								 "        Probability of raising a tower to the next level (default=1/2)\n"
+								 
+								 "  -l, --logicprob <double>\n"
+								 "        Probability of logically deleting an element (default=0)\n"
 
 								 );
 					exit(0);
@@ -424,6 +427,9 @@ int main(int argc, char **argv)
                                 case 'p':
                                         sscanf(optarg, "%lf", &levelProb);
                                         break;
+                                case 'l':
+                                        sscanf(optarg, "%lf", &logicProb);
+                                        break;
 				case '?':
 					printf("Use -h or --help for help\n");
 					exit(0);
@@ -438,6 +444,7 @@ int main(int argc, char **argv)
 	assert(range > 0 && range >= initial);
 	assert(update >= 0 && update <= 100);
 	assert(levelProb > 0.0 && levelProb < 1.0);
+	assert(logicProb > 0.0 && logivProb < 1.0);
 
 	printf("Set type     : skip list\n");
 	printf("Duration     : %d\n", duration);
@@ -454,6 +461,8 @@ int main(int argc, char **argv)
 				 (int)sizeof(long),
 				 (int)sizeof(void *),
 				 (int)sizeof(uintptr_t));
+	printf("Level prob: %lf\n", levelProb);
+	printf("Logic prob: %lf\n", logicProb);
 
 	timeout.tv_sec = duration / 1000;
 	timeout.tv_nsec = (duration % 1000) * 1000000;

@@ -79,7 +79,7 @@ static int gc_id[NUM_LEVELS];
  * Random level generator. Drop-off rate is 0.5 per level.
  * Returns value 1 <= level <= NUM_LEVELS.
  */
-double levelProb = 2.0;
+double levelProb = 0.5;
 static int get_level(ptst_t *ptst)
 {
     int level = 1;
@@ -329,6 +329,7 @@ int set_update(set_t *l, setkey_t k, setval_t v, int overwrite)
         while ( (overwrite || ov == LDEL) && ((new_ov = CASPO(&succ->v, ov, v)) != ov) );
 
         if ( new != NULL ) free_node(ptst, new);
+        result = ov == LDEL;
         goto out;
     }
 
@@ -417,7 +418,7 @@ int set_update(set_t *l, setkey_t k, setval_t v, int overwrite)
     return(result);
 }
 
-
+double logicProb = 0.0;
 int set_remove(set_t *l, setkey_t k)
 {
     setval_t  v = NULL, new_v;
@@ -434,18 +435,23 @@ int set_remove(set_t *l, setkey_t k)
     if ( x->k > k ) goto out;
     READ_FIELD(level, x->level);
     level = level & LEVEL_MASK;
+    
+    if ( x->v == LDEL) {
+        result = 0;
+        goto out;
+    }
 
     /* Once we've marked the value field, the node is effectively deleted. */
     setval_t repl = NULL;
     // Have a chance of only logically deleting it
-    if (unif_next(ptst) < 1.0) {
+    if (unif_next(ptst) < logicProb) {
     	repl = LDEL;
     }
     
     new_v = x->v;
     do {
         v = new_v;
-        if ( v == repl ) goto out;
+        if ( v == NULL || v == LDEL ) goto out;
     }
     while ( (new_v = CASPO(&x->v, v, repl)) != v );
 
@@ -453,6 +459,7 @@ int set_remove(set_t *l, setkey_t k)
 
     /* Committed to @x: mark lower-level forward pointers. */
     WEAK_DEP_ORDER_WMB(); /* enforce above as linearisation point */
+
     // If logically deleted, don't need to unlink
     if (repl == LDEL) goto out;
     
