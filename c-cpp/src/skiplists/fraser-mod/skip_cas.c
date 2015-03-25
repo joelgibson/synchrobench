@@ -43,6 +43,8 @@
 #include "ptst.h"
 #include "set.h"
 
+#define LDEL ((void *)0x10150444d)
+
 
 /*
  * SKIP LIST
@@ -80,14 +82,8 @@ static int gc_id[NUM_LEVELS];
 double levelProb = 2.0;
 static int get_level(ptst_t *ptst)
 {
-    /*unsigned long r = rand_next(ptst);
-    int l = 1;
-    r = (r >> 4) & ((1 << (NUM_LEVELS-1)) - 1);
-    while ( (r & 1) ) { l++; r >>= 1; }
-    return(l);*/
     int level = 1;
     while (level < NUM_LEVELS && unif_next(ptst) < levelProb) level++;
-    //printf("%d\n", level);
     return level;
 }
 
@@ -298,7 +294,6 @@ set_t *set_alloc(void)
     return(l);
 }
 
-
 int set_update(set_t *l, setkey_t k, setval_t v, int overwrite)
 {
     setval_t  ov, new_ov;
@@ -331,7 +326,7 @@ int set_update(set_t *l, setkey_t k, setval_t v, int overwrite)
                 goto retry;
             }
         }
-        while ( overwrite && ((new_ov = CASPO(&succ->v, ov, v)) != ov) );
+        while ( (overwrite || ov == LDEL) && ((new_ov = CASPO(&succ->v, ov, v)) != ov) );
 
         if ( new != NULL ) free_node(ptst, new);
         goto out;
@@ -441,17 +436,26 @@ int set_remove(set_t *l, setkey_t k)
     level = level & LEVEL_MASK;
 
     /* Once we've marked the value field, the node is effectively deleted. */
+    setval_t repl = NULL;
+    // Have a chance of only logically deleting it
+    if (unif_next(ptst) < 1.0) {
+    	repl = LDEL;
+    }
+    
     new_v = x->v;
     do {
         v = new_v;
-        if ( v == NULL ) goto out;
+        if ( v == repl ) goto out;
     }
-    while ( (new_v = CASPO(&x->v, v, NULL)) != v );
+    while ( (new_v = CASPO(&x->v, v, repl)) != v );
 
     result = 1;
 
     /* Committed to @x: mark lower-level forward pointers. */
     WEAK_DEP_ORDER_WMB(); /* enforce above as linearisation point */
+    // If logically deleted, don't need to unlink
+    if (repl == LDEL) goto out;
+    
     mark_deleted(x, level);
 
     /*
@@ -498,7 +502,7 @@ int set_lookup(set_t *l, setkey_t k)
 
     critical_exit(ptst);
 
-    if (NULL != v)
+    if (NULL != v && LDEL != v)
         result = 1;
     return(result);
 }
@@ -534,7 +538,7 @@ unsigned long set_count(set_t *set)
 
 	curr = &set->head;
 	do {
-		if (curr->v != NULL && curr->v != curr) ++i;
+		if (curr->v != NULL && curr->v != curr && curr->v != LDEL) ++i;
                 curr = curr->next[0];
 	} while (SENTINEL_KEYMAX != curr->k);
 
