@@ -10,8 +10,6 @@ else
   BINS = $(BINDIR)/$(STM)-linkedlist
 endif
 
-CC=gcc
-
 CFLAGS += -Wall -pedantic -std=gnu11
 #LDFLAGS += -ltcmalloc
 

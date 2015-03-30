@@ -166,6 +166,12 @@ typedef struct thread_data {
 	unsigned long failures_because_contention;
 } thread_data_t;
 
+long getrand(thread_data_t *d) {
+	if (d->bias_enabled)
+		return d->bias_offset + rand_range_re(&d->seed, d->bias_range) - 1;
+	return rand_range_re(&d->seed, d->range);
+}
+
 void *test(void *data) {
 	int unext, last = -1; 
 	int val = 0;
@@ -186,7 +192,7 @@ void *test(void *data) {
 			
 			if (last < 0) { // add
 		
-				val = rand_range_re(&d->seed, d->range);
+				val = getrand(d);
 				if (set_insert(d->set, val)) {
 					d->nb_added++;
 					last = val;
@@ -202,7 +208,7 @@ void *test(void *data) {
 					last = -1;
 				} else {
 					/* Random computation only in non-alternated cases */
-					val = rand_range_re(&d->seed, d->range);
+					val = getrand(d);
 					/* Remove one random value */
 					if (set_remove(d->set, val)) {
 						d->nb_removed++;
@@ -221,18 +227,18 @@ void *test(void *data) {
 						val = d->first;
 						last = val;
 					} else { // last >= 0
-						val = rand_range_re(&d->seed, d->range);
+						val = getrand(d);
 						last = -1;
 					}
 				} else { // update != 0
 					if (last < 0) {
-						val = rand_range_re(&d->seed, d->range);
+						val = getrand(d);
 						//last = val;
 					} else {
 						val = last;
 					}
 				}
-			}	else val = rand_range_re(&d->seed, d->range);
+			}	else val = getrand(d);
 			
 			if (set_contains(d->set, val)) 
 				d->nb_found++;
@@ -345,9 +351,9 @@ int main(int argc, char **argv) {
 								 "  -u, --update-rate <int>\n"
 								 "        Percentage of update transactions (default=" XSTR(DEFAULT_UPDATE) ")\n"
 								 "  -b, --bias-range <int>\n"
-								 "        If used, updates will take place in range [B, B+b]\n"
+								 "        If used, updates will take place in range [B, B+b)\n"
 								 "  -B, --bias-offset <int>\n"
-								 "        If used, updates will take place in range [B, B+b]\n"
+								 "        If used, updates will take place in range [B, B+b)\n"
 								 "  -x, --elasticity (default=4)\n"
 								 "        Use elastic transactions\n"
 								 "        0 = non-protected,\n"
@@ -417,7 +423,7 @@ int main(int argc, char **argv) {
 	printf("Nb threads   : %d\n", nb_threads);
 	printf("Value range  : %ld\n", range);
 	if (bias_enabled) {
-		printf("Biased range: [%ld, %ld]\n", bias_offset, bias_offset+bias_range);
+		printf("Biased range: [%ld, %ld)\n", bias_offset, bias_offset+bias_range);
 	}
 	printf("Seed         : %d\n", seed);
 	printf("Update rate  : %d\n", update);
