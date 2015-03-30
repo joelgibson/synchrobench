@@ -16,3 +16,10 @@ to quickly see if that's a bottleneck. Two common ones are tcmalloc and jemalloc
 
     LD_PRELOAD=/usr/lib/libtcmalloc.so.4
     LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libjemalloc.so
+
+$ sudo bash
+for i in /sys/devices/system/cpu/cpu[0-7]
+do
+    echo performance > $i/cpufreq/scaling_governor
+done
+#
