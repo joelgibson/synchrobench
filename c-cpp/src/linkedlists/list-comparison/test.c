@@ -55,6 +55,8 @@
 #define DEFAULT_INITIAL                 256
 #define DEFAULT_NB_THREADS              1
 #define DEFAULT_RANGE                   0x7FFFFFFF
+#define DEFAULT_BIAS_RANGE                   (-1)
+#define DEFAULT_BIAS_OFFSET                  (-1)
 #define DEFAULT_SEED                    0
 #define DEFAULT_UPDATE                  20
 #define DEFAULT_ELASTICITY              4
@@ -136,6 +138,9 @@ inline long rand_range_re(unsigned int *seed, long r) {
 typedef struct thread_data {
 	val_t first;
 	long range;
+	int bias_enabled;
+	long bias_range;
+	long bias_offset;
 	int update;
 	int unit_tx;
 	int alternate;
@@ -265,6 +270,8 @@ int main(int argc, char **argv) {
 		{"range",                     required_argument, NULL, 'r'},
 		{"seed",                      required_argument, NULL, 'S'},
 		{"update-rate",               required_argument, NULL, 'u'},
+		{"bias-range",               required_argument, NULL, 'b'},
+		{"bias-offset",               required_argument, NULL, 'u'},
 		{"elasticity",                required_argument, NULL, 'x'},
 		{NULL, 0, NULL, 0}
 	};
@@ -287,6 +294,9 @@ int main(int argc, char **argv) {
 	int initial = DEFAULT_INITIAL;
 	int nb_threads = DEFAULT_NB_THREADS;
 	long range = DEFAULT_RANGE;
+	long bias_range = DEFAULT_BIAS_RANGE;
+	long bias_offset = DEFAULT_BIAS_OFFSET;
+	int bias_enabled = 0;
 	int seed = DEFAULT_SEED;
 	int update = DEFAULT_UPDATE;
 	int unit_tx = DEFAULT_ELASTICITY;
@@ -296,7 +306,7 @@ int main(int argc, char **argv) {
 	
 	while(1) {
 		i = 0;
-		c = getopt_long(argc, argv, "hAf:d:i:n:r:S:u:x:", long_options, &i);
+		c = getopt_long(argc, argv, "hAf:d:i:n:r:S:u:b:B:x:", long_options, &i);
 		
 		if(c == -1)
 			break;
@@ -334,6 +344,10 @@ int main(int argc, char **argv) {
 								 "        RNG seed (0=time-based, default=" XSTR(DEFAULT_SEED) ")\n"
 								 "  -u, --update-rate <int>\n"
 								 "        Percentage of update transactions (default=" XSTR(DEFAULT_UPDATE) ")\n"
+								 "  -b, --bias-range <int>\n"
+								 "        If used, updates will take place in range [B, B+b]\n"
+								 "  -B, --bias-offset <int>\n"
+								 "        If used, updates will take place in range [B, B+b]\n"
 								 "  -x, --elasticity (default=4)\n"
 								 "        Use elastic transactions\n"
 								 "        0 = non-protected,\n"
@@ -369,6 +383,12 @@ int main(int argc, char **argv) {
 				case 'u':
 					update = atoi(optarg);
 					break;
+				case 'b':
+					bias_range = atol(optarg);
+					break;
+				case 'B':
+					bias_offset = atol(optarg);
+					break;	
 				case 'x':
 					unit_tx = atoi(optarg);
 					break;
@@ -385,12 +405,20 @@ int main(int argc, char **argv) {
 	assert(nb_threads > 0);
 	assert(range > 0 && range >= initial);
 	assert(update >= 0 && update <= 100);
+	if (bias_range != DEFAULT_BIAS_RANGE || bias_offset != DEFAULT_BIAS_OFFSET) {
+		bias_enabled = 1;
+		assert(bias_range >= 0);
+		assert(bias_offset > 0);
+	}
 	
 	printf("Bench type   : " ALGONAME "\n");
 	printf("Duration     : %d\n", duration);
 	printf("Initial size : %d\n", initial);
 	printf("Nb threads   : %d\n", nb_threads);
 	printf("Value range  : %ld\n", range);
+	if (bias_enabled) {
+		printf("Biased range: [%ld, %ld]\n", bias_offset, bias_offset+bias_range);
+	}
 	printf("Seed         : %d\n", seed);
 	printf("Update rate  : %d\n", update);
 	printf("Elasticity   : %d\n", unit_tx);
@@ -448,6 +476,9 @@ int main(int argc, char **argv) {
 	for (i = 0; i < nb_threads; i++) {
 		printf("Creating thread %d\n", i);
 		data[i].first = last;
+		data[i].bias_enabled = bias_enabled;
+		data[i].bias_range = bias_range;
+		data[i].bias_offset = bias_offset;
 		data[i].range = range;
 		data[i].update = update;
 		data[i].unit_tx = unit_tx;
