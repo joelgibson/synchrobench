@@ -47,6 +47,8 @@
 #include "lazy.h"
 #elif defined COUPLING
 #include "coupling.h"
+#elif defined UNIVERSAL
+#include "universal.h"
 #else
 #error "No algorithm named"
 #endif
@@ -122,6 +124,7 @@ inline long rand_range(long r) {
 }
 
 /* Re-entrant version of rand_range(r) */
+// Returns values in the range [1, r]
 inline long rand_range_re(unsigned int *seed, long r) {
 	int m = 2147483647;
 	long d, v = 0;
@@ -175,9 +178,10 @@ long getrand(thread_data_t *d) {
 void *test(void *data) {
 	int unext, last = -1; 
 	int val = 0;
+  int doadd;
 	
 	thread_data_t *d = (thread_data_t *)data;
-	
+
 	/* Create transaction */
 	//TM_THREAD_ENTER();
 	/* Wait on barrier */
@@ -190,7 +194,11 @@ void *test(void *data) {
 		
 		if (unext) { // update
 			
-			if (last < 0) { // add
+      if (d->bias_enabled)
+        doadd = rand_range_re(&d->seed, 2) == 1;
+      else
+        doadd = last < 0;
+			if (doadd) {
 		
 				val = getrand(d);
 				if (set_insert(d->set, val)) {
@@ -201,7 +209,8 @@ void *test(void *data) {
 				
 			} else { // remove
 				
-				if (d->alternate) { // alternate mode (default)
+				if (d->alternate) { // alternate mode (not default)
+          printf("Alternating");
 					if (set_remove(d->set, last)) {
 						d->nb_removed++;
 					} 
@@ -245,15 +254,19 @@ void *test(void *data) {
 			d->nb_contains++;
 	
 		}
+
+    unext = (rand_range_re(&d->seed, 100) - 1 < d->update);
+
 		
 		/* Is the next op an update? */
+    /*
 		if (d->effective) { // a failed remove/add is a read-only tx
 			unext = ((100 * (d->nb_added + d->nb_removed))
 						 < (d->update * (d->nb_add + d->nb_remove + d->nb_contains)));
 		} else { // remove/add (even failed) is considered as an update
 			unext = (rand_range_re(&d->seed, 100) - 1 < d->update);
 		}
-		
+		*/
 	}
 	
 	/* Free transaction */
