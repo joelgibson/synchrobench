@@ -120,7 +120,8 @@ int set_remove(intset_t *set, val_t val) {
 				break;
 		}
 	} while(1);
-	if (!atomic_compare_exchange_strong(&left_node->next, &right_node, right_node_next))
+	node_t *expected = right_node;
+	if (!atomic_compare_exchange_strong(&left_node->next, &expected, right_node_next))
 		right_node = harris_search(set, right_node->val, &left_node);
 	return 1;
 }

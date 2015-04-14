@@ -613,18 +613,8 @@ int main(int argc, char **argv) {
 		if (max_retries < data[i].max_retries)
 			max_retries = data[i].max_retries;
 	}
-	// Custom set size
-	if (NULL == set) printf("Set is null\n");
-	node_t *head = set->head;
-	if (NULL == head) printf("Head is null\n");
-	int setsize = 0;
-	while (head != NULL) {
-		setsize++;
-		head = head->next;
-	}
-
-	printf("Set size      : %d (expected: %d)\n", setsize, size);
-	if (setsize != size) {
+	printf("Set size      : %d (expected: %d)\n", set_size(set), size);
+	if (set_size(set) != size) {
 		printf("ERROR: Set size did not match expected.\n");
 	}
 	printf("Duration      : %d (ms)\n", duration);
