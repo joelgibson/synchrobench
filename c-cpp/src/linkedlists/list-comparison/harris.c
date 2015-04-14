@@ -4,23 +4,18 @@
 // Import common set operations
 #include "mixin.c"
 
-/*
- * The five following functions handle the low-order mark bit that indicates
- * whether a node is logically deleted (1) or not (0).
- *  - is_marked_ref returns whether it is marked, 
- *  - (un)set_marked changes the mark,
- *  - get_(un)marked_ref sets the mark before returning the node.
- */
-static inline int is_marked_ref(uintptr_t i) {
-    return (int) (i & ((uintptr_t)1));
+// The following functions deal with the marked pointers.
+static inline int is_marked_ref(node_t *node) {
+	uintptr_t val = (uintptr_t) node;
+	return (int) (val & (uintptr_t)1);
 }
-
-static inline uintptr_t get_unmarked_ref(uintptr_t i) {
-	return i & ~((uintptr_t)1);
+static inline node_t *get_unmarked_ref(node_t *node) {
+	uintptr_t val = (uintptr_t) node;
+	return (node_t *) (val & ~(uintptr_t)1);
 }
-
-static inline uintptr_t get_marked_ref(uintptr_t i) {
-  return get_unmarked_ref(i) + 1;
+static inline node_t *get_marked_ref(node_t *node) {
+	uintptr_t val = (uintptr_t) node;
+	return (node_t *) (val | (uintptr_t)1);
 }
 
 /*
@@ -42,26 +37,29 @@ search_again:
 		
 		/* Find left_node and right_node */
 		do {
-			if (!is_marked_ref((uintptr_t) t_next)) {
+			if (!is_marked_ref(t_next)) {
 				(*left_node) = t;
 				left_node_next = t_next;
 			}
-			t = (node_t *) get_unmarked_ref((uintptr_t) t_next);
-			if (!atomic_load(&t->next)) break;
+			t = get_unmarked_ref(t_next);
+			if (NULL == atomic_load(&t->next))
+				break;
 			t_next = atomic_load(&t->next);
-		} while (is_marked_ref((uintptr_t) t_next) || (t->val < val));
+		} while (is_marked_ref(t_next) || (t->val < val));
 		right_node = t;
 		
 		/* Check that nodes are adjacent */
 		if (left_node_next == right_node) {
-			if (right_node->next && is_marked_ref((uintptr_t) right_node->next))
+			node_t *right_node_next = atomic_load(&right_node->next);
+			if (right_node_next != NULL && is_marked_ref(right_node_next))
 				goto search_again;
 			else return right_node;
 		}
 		
 		/* Remove one or more marked nodes */
-    if (atomic_compare_exchange_strong(&(*left_node)->next, &left_node_next, right_node)) {
-			if (right_node->next && is_marked_ref((uintptr_t) right_node->next))
+		if (atomic_compare_exchange_strong(&(*left_node)->next, &left_node_next, right_node)) {
+			node_t *right_node_next = atomic_load(&right_node->next);
+			if (right_node_next != NULL && is_marked_ref(right_node_next))
 				goto search_again;
 			else return right_node;
 		} 
@@ -108,19 +106,19 @@ int set_insert(intset_t *set, val_t val) {
  */
 int set_remove(intset_t *set, val_t val) {
 	node_t *right_node, *right_node_next, *left_node;
-	left_node = set->head;
 	
 	do {
 		right_node = harris_search(set, val, &left_node);
 		if (right_node->val != val)
 			return 0;
 		right_node_next = atomic_load(&right_node->next);
-		if (!is_marked_ref((long) right_node_next))
-      if (atomic_compare_exchange_strong(
-            &right_node->next,
-            &right_node_next,
-            get_marked_ref((uintptr_t)right_node_next)))
+		if (!is_marked_ref(right_node_next)) {
+			if (atomic_compare_exchange_strong(
+					&right_node->next,
+					&right_node_next,
+					get_marked_ref(right_node_next)))
 				break;
+		}
 	} while(1);
 	if (!atomic_compare_exchange_strong(&left_node->next, &right_node, right_node_next))
 		right_node = harris_search(set, right_node->val, &left_node);
