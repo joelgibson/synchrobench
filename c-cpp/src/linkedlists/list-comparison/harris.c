@@ -88,12 +88,13 @@ int set_contains(intset_t *set, val_t val) {
 int set_insert(intset_t *set, val_t val) {
 	node_t *newnode, *right_node, *left_node;
 	left_node = set->head;
-	newnode = new_node(val, NULL);
+	newnode = NULL;
 	
 	do {
 		right_node = harris_search(set, val, &left_node);
 		if (right_node->val == val)
 			return 0;
+		if (newnode == NULL) newnode = new_node(val, NULL);
 		newnode->next = right_node;
 		if (atomic_compare_exchange_strong(&left_node->next, &right_node, newnode))
 			return 1;
