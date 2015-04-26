@@ -77,7 +77,7 @@ int set_contains(intset_t *set, val_t val) {
 int set_insert(intset_t *set, val_t val) {
   node_t *prev, *curr, *newnode;
   vlock_t pVer;
-  newnode = new_node(val, NULL);
+  newnode = NULL;
 
 retry_insert_full:
   prev = waitfree_traversal(set, val);
@@ -89,6 +89,8 @@ retry_insert_partial:
   if (curr->val == val)
     return 0;
 
+  if (newnode == NULL)
+	  newnode = new_node(val, NULL);
   newnode->next = curr;
   if (!try_lock_at_version(prev, pVer))
     goto retry_insert_partial;
