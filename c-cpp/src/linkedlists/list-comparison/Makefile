@@ -15,7 +15,7 @@ CFLAGS += -Wall -pedantic -std=gnu11
 
 .PHONY:	all clean
 
-all: sequential harris versioned fomitchev lazy coupling universal
+all: sequential harris versioned fomitchev lazy coupling universal fr-waitfree-contains
 
 sequential: sequential.o test.c
 	$(CC) $(CFLAGS) -DSEQUENTIAL sequential.o test.c -o sequential $(LDFLAGS)
@@ -29,6 +29,9 @@ versioned: versioned.o test.c
 fomitchev: fomitchev.o test.c
 	$(CC) $(CFLAGS) -DFOMITCHEV fomitchev.o test.c -o fomitchev $(LDFLAGS)
 
+fr-waitfree-contains: fr-waitfree-contains.o test.c
+	$(CC) $(CFLAGS) -DFR_WAITFREE_CONTAINS fr-waitfree-contains.o test.c -o fr-waitfree-contains $(LDFLAGS)
+
 lazy: lazy.o test.c
 	$(CC) $(CFLAGS) -DLAZY lazy.o test.c -o lazy $(LDFLAGS)
 
@@ -39,4 +42,4 @@ universal: universal.o test.c
 	$(CC) $(CFLAGS) -DUNIVERSAL universal.o test.c -o universal $(LDFLAGS)
 
 clean:
-	-rm -f *.o sequential harris versioned fomitchev lazy coupling universal
+	-rm -f *.o sequential harris versioned fomitchev lazy coupling universal fr-waitfree-contains

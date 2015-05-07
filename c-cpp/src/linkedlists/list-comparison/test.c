@@ -49,6 +49,8 @@
 #include "coupling.h"
 #elif defined UNIVERSAL
 #include "universal.h"
+#elif defined FR_WAITFREE_CONTAINS
+#include "fr-waitfree-contains.h"
 #else
 #error "No algorithm named"
 #endif
