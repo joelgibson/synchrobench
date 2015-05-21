@@ -171,108 +171,81 @@ typedef struct thread_data {
 	unsigned long failures_because_contention;
 } thread_data_t;
 
-long getrand(thread_data_t *d) {
-	if (d->bias_enabled)
-		return d->bias_offset + rand_range_re(&d->seed, d->bias_range) - 1;
-	return rand_range_re(&d->seed, d->range);
-}
-
 void *test(void *data) {
-	int unext, last = -1; 
-	int val = 0;
-  int doadd;
-	
-	thread_data_t *d = (thread_data_t *)data;
+	// Read this locally to prevent possible cache effects.
+	thread_data_t d = *(thread_data_t *)data;
 
-	/* Create transaction */
-	//TM_THREAD_ENTER();
-	/* Wait on barrier */
-	barrier_cross(d->barrier);
-	
-	/* Is the first op an update? */
-	unext = (rand_range_re(&d->seed, 100) - 1 < d->update);
+	// Wait for all threads to become ready.
+	barrier_cross(d.barrier);
 
-  while (atomic_load(&stop) == 0) {
+	// Last value to be inserted, or -ve if last action was remove.
+	// Start -ve here so that alternate mode will not hang.
+	int last = -1;
+
+	// If we're in bias mode, should start positive so that something
+	// gets removed.
+	if (d.bias_enabled)
+		last = d.bias_offset;
+
+	while (atomic_load(&stop) == 0) {
+		// Is the next op an update?
+		int do_update;
+		if (d.effective)
+			do_update = (100 * (d.nb_added + d.nb_removed)) < (d.update * (d.nb_add + d.nb_remove + d.nb_contains));
+		else
+			do_update = rand_range_re(&d.seed, 100) - 1 < d.update;
 		
-		if (unext) { // update
-			
-      if (d->bias_enabled)
-        doadd = rand_range_re(&d->seed, 2) == 1;
-      else
-        doadd = last < 0;
-			if (doadd) {
-		
-				val = getrand(d);
-				if (set_insert(d->set, val)) {
-					d->nb_added++;
-					last = val;
-				} 				
-				d->nb_add++;
-				
-			} else { // remove
-				
-				if (d->alternate) { // alternate mode (not default)
-          printf("Alternating");
-					if (set_remove(d->set, last)) {
-						d->nb_removed++;
-					} 
-					last = -1;
-				} else {
-					/* Random computation only in non-alternated cases */
-					val = getrand(d);
-					/* Remove one random value */
-					if (set_remove(d->set, val)) {
-						d->nb_removed++;
-						/* Repeat until successful, to avoid size variations */
-						last = -1;
-					} 
-				}
-				d->nb_remove++;
+		// Value on which to operate. (may be modified later,
+		// if in alternate mode or bias mode)
+		int value = rand_range_re(&d.seed, d.range);
+
+		// If we're in bias mode, restrict the range
+		if (d.bias_enabled)
+			value = d.bias_offset + rand_range_re(&d.seed, d.bias_range) - 1;
+
+		if (do_update && last < 0) {
+			// Add
+			if (set_insert(d.set, value)) {
+				d.nb_added++;
+				last = value;
 			}
+			d.nb_add++;
+		} else if (do_update && last >= 0) {
+			// Remove
 			
-		} else { // read
-				
-			if (d->alternate) {
-				if (d->update == 0) {
-					if (last < 0) {
-						val = d->first;
-						last = val;
-					} else { // last >= 0
-						val = getrand(d);
-						last = -1;
-					}
-				} else { // update != 0
-					if (last < 0) {
-						val = getrand(d);
-						//last = val;
-					} else {
-						val = last;
-					}
+			// If in alternate mode, remove the last item added.
+			if (d.alternate) {
+				if (set_remove(d.set, last))
+					d.nb_removed++;
+				last = -1;
+			} else {
+				if (set_remove(d.set, value)) {
+					d.nb_removed++;
+					last = -1;
 				}
-			}	else val = getrand(d);
-			
-			if (set_contains(d->set, val)) 
-				d->nb_found++;
-			d->nb_contains++;
-	
-		}
+			}
+			d.nb_remove++;
+		} else {
+			// Read
+			if (d.alternate) {
+				if (d.update == 0) {
+					if (last < 0)
+						last = value = d.first;
+					else
+						last = -1;
+				} else { // update != 0
+					if (last >= 0)
+						value = last;
+				}
+			}
 
-    unext = (rand_range_re(&d->seed, 100) - 1 < d->update);
-
-		
-		/* Is the next op an update? */
-    /*
-		if (d->effective) { // a failed remove/add is a read-only tx
-			unext = ((100 * (d->nb_added + d->nb_removed))
-						 < (d->update * (d->nb_add + d->nb_remove + d->nb_contains)));
-		} else { // remove/add (even failed) is considered as an update
-			unext = (rand_range_re(&d->seed, 100) - 1 < d->update);
+			if (set_contains(d.set, value))
+				d.nb_found++;
+			d.nb_contains++;
 		}
-		*/
 	}
-	
-	/* Free transaction */
-	//TM_THREAD_EXIT();
+
+	*(thread_data_t *)data = d;
 	
 	return NULL;
 }
