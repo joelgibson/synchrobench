@@ -199,9 +199,11 @@ void *test(void *data) {
 		// if in alternate mode or bias mode)
 		int value = rand_range_re(&d.seed, d.range);
 
-		// If we're in bias mode, restrict the range
-		if (d.bias_enabled)
+		// If we're in bias mode, restrict the range, and just choose adding or removing at random
+		if (d.bias_enabled) {
 			value = d.bias_offset + rand_range_re(&d.seed, d.bias_range) - 1;
+			last = (rand_range_re(&d.seed, 2) == 1) ? -1 : value;
+		}
 
 		if (do_update && last < 0) {
 			// Add
