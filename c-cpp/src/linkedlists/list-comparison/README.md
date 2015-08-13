@@ -1,5 +1,12 @@
 # Comparison of concurrent linked lists
 
+All of the lists can be built by running a command similar to
+
+    CC=gcc-4.9 make
+
+A recent compiler should be used, since these make use of the C11 `stdatomic.h`
+header.
+
 Each list should be compiled using only the two C files `<algo>.c` and
 `test.c`. For example, the Harris linked list can be compiled essentially
 by doing
